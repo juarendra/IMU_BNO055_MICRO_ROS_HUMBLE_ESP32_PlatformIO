@@ -1,4 +1,4 @@
-#include <micro_ros_arduino.h>
+#include <micro_ros_platformio.h>
 #include <Wire.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BNO055.h>
@@ -101,98 +101,6 @@ struct timespec getTime()
     return tp;
 }
 
-void setup() {
-  set_microros_transports();
-  
-  pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, HIGH);  
-  /* Initialise the sensor */
-  if (!bno.begin())
-  {
-    error_loop();
-  }
-  else{
-   
-    flashLED(3);
-
-  }
-
-}
-
-void loop() {
-  switch (state) 
-    {
-      case WAITING_AGENT:
-          EXECUTE_EVERY_N_MS(500, state = (RMW_RET_OK == rmw_uros_ping_agent(100, 1)) ? AGENT_AVAILABLE : WAITING_AGENT);
-          break;
-      case AGENT_AVAILABLE:
-          state = (true == createEntities()) ? AGENT_CONNECTED : WAITING_AGENT;
-          if (state == WAITING_AGENT) 
-          {
-              destroyEntities();
-          }
-          break;
-      case AGENT_CONNECTED:
-          EXECUTE_EVERY_N_MS(200, state = (RMW_RET_OK == rmw_uros_ping_agent(100, 1)) ? AGENT_CONNECTED : AGENT_DISCONNECTED);
-          if (state == AGENT_CONNECTED) 
-          {
-              rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100));
-          }
-          break;
-      case AGENT_DISCONNECTED:
-          destroyEntities();
-          ESP.restart();
-          state = WAITING_AGENT;
-          break;
-      default:
-          break;
-    }
-}
-
-bool createEntities()
-{
-  allocator = rcl_get_default_allocator();
-
-  rcl_init_options_t init_options = rcl_get_zero_initialized_init_options();
-  rcl_init_options_init(&init_options, allocator);
-  rcl_init_options_set_domain_id(&init_options, 30);
-
-  //create init_options
-  rclc_support_init_with_options(&support, 0, NULL, &init_options, &allocator);
-
-  // create node
-  RCCHECK(rclc_node_init_default(&node, "micro_ros_imu_node_", "", &support));
-  // create publisher
-  RCCHECK(rclc_publisher_init_default(
-    &publisher_imu,
-    &node,
-    ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Imu),
-    "imu/data_raw"));
-
-  RCCHECK(rclc_publisher_init_default(
-    &publisher_mag,
-    &node,
-    ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, MagneticField),
-    "imu/mag_raw"));
-  
-  const unsigned int control_timeout = 20;
-    RCCHECK(rclc_timer_init_default( 
-        &control_timer, 
-        &support,
-        RCL_MS_TO_NS(control_timeout),
-        publishData
-  ));
-  
-  RCCHECK(rclc_executor_init(&executor, &support.context, 3, &allocator));
-  RCCHECK(rclc_executor_add_timer(&executor, &control_timer));
-  
-  // synchronize time with the agent
-  syncTime();
-  digitalWrite(LED_PIN, HIGH);
-  
-
-  return true;
-}
 
 
 bool destroyEntities()
@@ -211,6 +119,8 @@ bool destroyEntities()
   
   return true;
 }
+
+
 void publishData(rcl_timer_t * timer, int64_t last_call_time) {
   RCLC_UNUSED(last_call_time);
     if (timer != NULL) 
@@ -271,3 +181,99 @@ void publishData(rcl_timer_t * timer, int64_t last_call_time) {
     }
 
 } 
+
+
+bool createEntities()
+{
+  allocator = rcl_get_default_allocator();
+
+  rcl_init_options_t init_options = rcl_get_zero_initialized_init_options();
+  rcl_init_options_init(&init_options, allocator);
+  rcl_init_options_set_domain_id(&init_options, 30);
+
+  //create init_options
+  rclc_support_init_with_options(&support, 0, NULL, &init_options, &allocator);
+
+  // create node
+  RCCHECK(rclc_node_init_default(&node, "micro_ros_imu_node_", "", &support));
+  // create publisher
+  RCCHECK(rclc_publisher_init_default(
+    &publisher_imu,
+    &node,
+    ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Imu),
+    "imu/data_raw"));
+
+  RCCHECK(rclc_publisher_init_default(
+    &publisher_mag,
+    &node,
+    ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, MagneticField),
+    "imu/mag_raw"));
+  
+  const unsigned int control_timeout = 20;
+    RCCHECK(rclc_timer_init_default( 
+        &control_timer, 
+        &support,
+        RCL_MS_TO_NS(control_timeout),
+        publishData
+  ));
+  
+  RCCHECK(rclc_executor_init(&executor, &support.context, 3, &allocator));
+  RCCHECK(rclc_executor_add_timer(&executor, &control_timer));
+  
+  // synchronize time with the agent
+  syncTime();
+  digitalWrite(LED_PIN, HIGH);
+  
+
+  return true;
+}
+
+
+
+void setup() {
+  set_microros_serial_transports(Serial);
+  
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, HIGH);  
+  /* Initialise the sensor */
+  if (!bno.begin())
+  {
+    error_loop();
+  }
+  else{
+   
+    flashLED(3);
+
+  }
+
+}
+
+void loop() {
+  switch (state) 
+    {
+      case WAITING_AGENT:
+          EXECUTE_EVERY_N_MS(500, state = (RMW_RET_OK == rmw_uros_ping_agent(100, 1)) ? AGENT_AVAILABLE : WAITING_AGENT);
+          break;
+      case AGENT_AVAILABLE:
+          state = (true == createEntities()) ? AGENT_CONNECTED : WAITING_AGENT;
+          if (state == WAITING_AGENT) 
+          {
+              destroyEntities();
+          }
+          break;
+      case AGENT_CONNECTED:
+          EXECUTE_EVERY_N_MS(200, state = (RMW_RET_OK == rmw_uros_ping_agent(100, 1)) ? AGENT_CONNECTED : AGENT_DISCONNECTED);
+          if (state == AGENT_CONNECTED) 
+          {
+              rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100));
+          }
+          break;
+      case AGENT_DISCONNECTED:
+          destroyEntities();
+          ESP.restart();
+          state = WAITING_AGENT;
+          break;
+      default:
+          break;
+    }
+}
